@@ -1,0 +1,49 @@
+realtime-media-backend/
+│
+├── apps/
+│   │
+│   ├── media-ingest-service/
+│   │   ├── cmd/
+│   │   │   └── server/
+│   │   ├── internal/
+│   │   │   ├── webrtc/
+│   │   │   ├── sessions/
+│   │   │   ├── streams/
+│   │   │   ├── tracks/
+│   │   │   ├── recording/
+│   │   │   ├── routing/
+│   │   │   └── metrics/
+│   │   ├── pkg/
+│   │   └── go.mod
+│   │
+│   └── media-control/
+│       ├── src/
+│       │   ├── rooms/
+│       │   ├── participants/
+│       │   ├── signaling/
+│       │   └── main.ts
+│       └── package.json
+│
+├── packages/
+│   │
+│   ├── grpc-contracts/
+│   │   ├── proto/
+│   │   │   ├── media.proto
+│   │   │   ├── session.proto
+│   │   │   └── stream.proto
+│   │   ├── generated/
+│   │   └── package.json
+│   │
+│   └── media-types/
+│
+├── infrastructure/
+│   ├── coturn/
+│   └── livekit/
+│
+├── test/
+├── scripts/
+├── docker/
+├── .github/
+├── go.work
+├── package.json
+└── README.md
