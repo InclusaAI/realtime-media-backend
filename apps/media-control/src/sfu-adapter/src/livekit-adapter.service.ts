@@ -19,7 +19,7 @@ export class LiveKitAdapterService implements SfuAdapter {
     );
   }
 
-  join(
+  async join(
     roomName: string,
     participantIdentity: string,
   ): Promise<{ token: string }> {
@@ -32,7 +32,7 @@ export class LiveKitAdapterService implements SfuAdapter {
     );
     at.addGrant({ roomJoin: true, room: roomName });
 
-    return Promise.resolve({ token: at.toJwt() });
+    return { token: await at.toJwt() };
   }
 
   async leave(roomName: string, participantIdentity: string): Promise<void> {
@@ -53,7 +53,10 @@ export class LiveKitAdapterService implements SfuAdapter {
       roomName,
       participantIdentity,
       undefined,
-      JSON.stringify(grant),
+      {
+        canPublish: true,
+        canSubscribe: true,
+      },
     );
     return Promise.resolve(undefined);
   }
@@ -72,7 +75,10 @@ export class LiveKitAdapterService implements SfuAdapter {
       roomName,
       participantIdentity,
       undefined,
-      JSON.stringify(grant),
+      {
+        canPublish: true,
+        canSubscribe: true,
+      },
     );
     return Promise.resolve(undefined);
   }
