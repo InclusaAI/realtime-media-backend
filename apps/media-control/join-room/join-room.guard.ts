@@ -1,9 +1,12 @@
 import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Observable } from "rxjs";
 import * as jwt from "jsonwebtoken";
 
 @Injectable()
 export class JoinRoomGuard implements CanActivate {
+  constructor(private readonly configService: ConfigService) {}
+
   canActivate(
     context: ExecutionContext,
   ): boolean | Promise<boolean> | Observable<boolean> {
@@ -11,11 +14,15 @@ export class JoinRoomGuard implements CanActivate {
     const data = context.switchToWs().getData();
 
     try {
-      const decoded = jwt.verify(data.token, "your-secret-key"); // Replace with your actual secret key
+      const jwtSecret = this.configService.get<string>("JWT_SECRET");
+      if (!jwtSecret) {
+        throw new Error("JWT_SECRET not configured");
+      }
+      const decoded = jwt.verify(data.token, jwtSecret);
       client.user = decoded;
       return true;
     } catch (err) {
-      client.emit("error", "Invalid token");
+      client.emit("error", `Authentication failed: ${(err as Error).message}`);
       return false;
     }
   }
