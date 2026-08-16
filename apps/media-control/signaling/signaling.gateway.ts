@@ -10,6 +10,7 @@ import { ClientKafka } from "@nestjs/microservices";
 import { Server, Socket } from "socket.io";
 import { JoinRoomGuard } from "../join-room/join-room.guard";
 import { LiveKitAdapterService } from "../src/sfu-adapter/livekit-adapter.service";
+import { AudioTapService } from "../src/audio-tap/audio-tap.service";
 
 @WebSocketGateway()
 export class SignalingGateway {
@@ -19,6 +20,7 @@ export class SignalingGateway {
   constructor(
     private readonly sfuAdapter: LiveKitAdapterService,
     @Inject("KAFKA_SERVICE") private readonly kafkaClient: ClientKafka,
+    private readonly audioTapService: AudioTapService,
   ) {}
 
   @UseGuards(JoinRoomGuard)
@@ -34,6 +36,7 @@ export class SignalingGateway {
       participantIdentity,
     });
     client.emit("token", { token });
+    this.audioTapService.startAudioTap(roomName);
   }
 
   @SubscribeMessage("leave-room")
