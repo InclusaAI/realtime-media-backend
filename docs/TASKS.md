@@ -73,7 +73,7 @@ _Status: **IN PROGRESS** - Signaling works, REST endpoints needed_
   - `JoinRoomDto` with token, roomName, participantIdentity
   - `MediaMetricsDto` with packet loss, jitter, RTT, bitrate
   - `SessionStatusDto` with participants, state, createdAt, metrics ✅✅
-  
+
 
 ### PHASE 1.2 - WebSocket Signaling Exposure & Testing
 
@@ -85,7 +85,7 @@ _Status: **IN PROGRESS** - Signaling works, REST endpoints needed_
 - [ ] **1.2.2** Create WebSocket connection guide/documentation
   - Document connection URL: `ws://localhost:3001`
   - Document authentication flow (JWT token)
-  - Include example client code
+  - Include example client code                 ✅✅
 
 ---
 

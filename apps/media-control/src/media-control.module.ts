@@ -11,6 +11,7 @@ import { HealthCheckModule } from "./health/health-check.module";
 import { IsString, IsNotEmpty, IsNumber, IsUrl, validateSync } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 import { SessionsModule } from './sessions/sessions.module'; // Import the new module
+import { SignalingModule } from "./signaling/signaling.module";
 
 class EnvironmentVariables {
   @IsString()
@@ -90,7 +91,8 @@ function validate(config: Record<string, unknown>) {
     AudioTapModule,
     EgressModule,
     HealthCheckModule,
-    SessionsModule, // Add the new module here
+    SessionsModule, 
+    SignalingModule, 
   ],
   controllers: [MediaControlController],
   providers: [MediaControlService],
