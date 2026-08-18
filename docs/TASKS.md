@@ -46,7 +46,7 @@ _Status: **PARTIALLY COMPLETE** - Core setup exists, documentation & deployment 
   - Create `/health` endpoint
   - Check Kafka connectivity
   - Check Redis connectivity
-  - Check LiveKit connectivity
+  - Check LiveKit connectivity          ✅✅✅✅✅
 
 ---
 
@@ -72,7 +72,8 @@ _Status: **IN PROGRESS** - Signaling works, REST endpoints needed_
   - `CreateSessionDto` with sessionId, initiatorId, mode (physical/virtual/hybrid)
   - `JoinRoomDto` with token, roomName, participantIdentity
   - `MediaMetricsDto` with packet loss, jitter, RTT, bitrate
-  - `SessionStatusDto` with participants, state, createdAt, metrics
+  - `SessionStatusDto` with participants, state, createdAt, metrics ✅✅
+  
 
 ### PHASE 1.2 - WebSocket Signaling Exposure & Testing
 
