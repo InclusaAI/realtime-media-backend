@@ -1,12 +1,14 @@
 import { Module } from "@nestjs/common";
 import { AudioTapService } from "./audio-tap.service";
-import { SfuAdapterModule } from "../sfu-adapter/src/sfu-adapter.module";
+import { SfuAdapterModule } from "../sfu-adapter/sfu-adapter.module";
+import { EgressModule } from "../egress/egress.module";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 
 @Module({
   imports: [
     SfuAdapterModule,
+    EgressModule,
     ClientsModule.registerAsync([
       {
         name: "KAFKA_SERVICE",

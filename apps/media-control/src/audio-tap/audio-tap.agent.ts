@@ -6,30 +6,62 @@ import {
   RemoteTrackPublication,
   Track,
 } from "livekit-client";
-import { LiveKitAdapterService } from "../sfu-adapter/src/livekit-adapter.service";
-import { io } from "socket.io-client";
 import { ClientKafka } from "@nestjs/microservices";
+import { Logger } from "@nestjs/common";
 
-// TODO: Add OpusEncoder from @discordjs/opus when native compilation is available
-// import { OpusEncoder } from "@discordjs/opus";
-
+/**
+ * AudioTapAgent connects to a LiveKit room as a subscriber,
+ * captures audio tracks from participants, and publishes
+ * audio chunks to Kafka for downstream AI services (ASR).
+ *
+ * Architecture:
+ * - Subscribes to all audio tracks in a room
+ * - Tracks which participant owns each track (trackSid -> identity)
+ * - Publishes metadata (speakerId, trackSid) to Kafka
+ * - Actual audio data flows via LiveKit Egress -> WebSocket -> AudioChunkHandler
+ *
+ * The agent itself handles the LiveKit SDK connection and track management.
+ * Raw audio processing is delegated to AudioChunkHandler via the Egress pipeline.
+ */
 export class AudioTapAgent {
-  private room: Room;
-  // private encoder: OpusEncoder;
+  private readonly logger = new Logger(AudioTapAgent.name);
+  private room: Room | null = null;
   private trackToParticipant: Map<string, string> = new Map();
+  private sequence: number = 0;
+  private running: boolean = false;
+
+  /** Callback when a new audio track is subscribed */
+  onTrackSubscribed?: (
+    roomName: string,
+    trackSid: string,
+    participantIdentity: string,
+  ) => void;
+
+  /** Callback when an audio track is unsubscribed */
+  onTrackUnsubscribed?: (trackSid: string) => void;
 
   constructor(
-    private readonly sfuAdapter: LiveKitAdapterService,
+    private readonly serverUrl: string,
     private readonly kafkaClient: ClientKafka,
-  ) {
-    // TODO: Initialize encoder when Opus dependency is available
-    // this.encoder = new OpusEncoder(48000, 1);
-  }
+  ) {}
 
-  async start(roomName: string): Promise<void> {
-    const { token } = await this.sfuAdapter.join(roomName, "audio-tap-agent");
-    this.room = new Room();
+  /**
+   * Connect to the room and start capturing audio tracks.
+   * @param roomName - LiveKit room name to join
+   * @param token - access token for authentication
+   */
+  async start(roomName: string, token: string): Promise<void> {
+    if (this.running) {
+      this.logger.warn("AudioTapAgent already running");
+      return;
+    }
 
+    this.room = new Room({
+      adaptiveStream: false,
+      dynacast: false,
+    });
+
+    // Handle new audio track subscriptions
     this.room.on(
       RoomEvent.TrackSubscribed,
       (
@@ -38,36 +70,135 @@ export class AudioTapAgent {
         participant: RemoteParticipant,
       ) => {
         if (track.kind === Track.Kind.Audio) {
-          this.trackToParticipant.set(track.sid, participant.identity);
-          this.sfuAdapter.startEgress(roomName, track.sid);
-          this.createEgressSocket(roomName, track.sid);
+          const trackSid = track.sid;
+          const participantIdentity = participant.identity;
+
+          this.logger.log(
+            `Subscribed to audio track ${trackSid} from ${participantIdentity} in room ${roomName}`,
+          );
+
+          this.trackToParticipant.set(trackSid, participantIdentity);
+
+          // Notify callback (used by AudioTapService to start egress)
+          this.onTrackSubscribed?.(
+            roomName,
+            trackSid,
+            participantIdentity,
+          );
+
+          // Publish participant joined event to Kafka
+          this.publishParticipantAudioEvent(
+            roomName,
+            trackSid,
+            participantIdentity,
+            "track_subscribed",
+          );
         }
       },
     );
 
-    await this.room.connect(this.sfuAdapter.getWsUrl(), token);
-    console.log(`Audio tap agent connected to room ${roomName}`);
+    // Handle track unsubscriptions
+    this.room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+      const trackSid = track.sid;
+      const participantIdentity =
+        this.trackToParticipant.get(trackSid) || "unknown";
+
+      this.logger.log(
+        `Audio track ${trackSid} unsubscribed from ${participantIdentity}`,
+      );
+
+      this.trackToParticipant.delete(trackSid);
+      this.onTrackUnsubscribed?.(trackSid);
+    });
+
+    // Handle disconnection
+    this.room.on(RoomEvent.Disconnected, () => {
+      this.logger.warn(`Audio tap disconnected from room ${roomName}`);
+      this.running = false;
+    });
+
+    // Handle reconnection
+    this.room.on(RoomEvent.Reconnected, () => {
+      this.logger.log(`Audio tap reconnected to room ${roomName}`);
+      this.running = true;
+    });
+
+    this.room.on(RoomEvent.Connected, () => {
+      this.logger.log(`Audio tap connected to room ${roomName}`);
+    });
+
+    try {
+      await this.room.connect(this.serverUrl, token);
+      this.running = true;
+      this.logger.log(`AudioTapAgent started for room ${roomName}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to connect AudioTapAgent to room ${roomName}`,
+        error,
+      );
+      this.running = false;
+      throw error;
+    }
   }
 
-  private createEgressSocket(roomName: string, trackSid: string) {
-    const socket = io("ws://localhost:3000/egress", {
-      query: { trackSid },
-    });
+  /**
+   * Publish a metadata event when a track is subscribed/unsubscribed.
+   * This helps downstream services correlate tracks with participants.
+   */
+  private publishParticipantAudioEvent(
+    roomName: string,
+    trackSid: string,
+    participantIdentity: string,
+    event: string,
+  ): void {
+    this.sequence++;
 
-    socket.on("connect", () => {
-      console.log(`Connected to egress websocket for track ${trackSid}`);
-    });
+    const message = {
+      event,
+      speakerId: participantIdentity,
+      trackSid,
+      sequence: this.sequence,
+      timestamp: new Date().toISOString(),
+      roomName,
+    };
 
-    socket.on("data", (data) => {
-      const speakerId = this.trackToParticipant.get(trackSid) || "unknown";
-      // TODO: Add Opus encoding when @discordjs/opus is available
-      const encodedData = Buffer.from(data).toString("base64");
-      this.kafkaClient.emit(`media.session.${roomName}.audio.chunk`, {
-        speakerId,
-        sequence: Date.now(),
-        timestamp: new Date().toISOString(),
-        data: encodedData,
-      });
-    });
+    this.kafkaClient.emit(
+      `media.session.${roomName}.audio.metadata`,
+      message,
+    );
+  }
+
+  /**
+   * Stop the agent, disconnect from the room, and clean up resources.
+   */
+  async stop(): Promise<void> {
+    this.running = false;
+    this.trackToParticipant.clear();
+    this.sequence = 0;
+
+    if (this.room) {
+      try {
+        this.room.disconnect();
+      } catch (error) {
+        this.logger.error("Error disconnecting audio tap room", error);
+      }
+      this.room = null;
+    }
+
+    this.logger.log("AudioTapAgent stopped");
+  }
+
+  /**
+   * Whether the agent is currently connected and running.
+   */
+  isRunning(): boolean {
+    return this.running;
+  }
+
+  /**
+   * Get the current track-to-participant mappings.
+   */
+  getTrackParticipants(): Map<string, string> {
+    return new Map(this.trackToParticipant);
   }
 }
