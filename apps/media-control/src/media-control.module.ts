@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ClientsModule, Transport } from "@nestjs/microservices";
-import { SfuAdapterModule } from "./sfu-adapter/src/sfu-adapter.module";
+import { SfuAdapterModule } from "./sfu-adapter/sfu-adapter.module";
 import { MediaControlController } from "./media-control.controller";
 import { MediaControlService } from "./media-control.service";
 import kafkaConfig from "./config/kafka.config";
@@ -10,7 +10,7 @@ import { EgressModule } from "./egress/egress.module";
 import { HealthCheckModule } from "./health/health-check.module";
 import { IsString, IsNotEmpty, IsNumber, IsUrl, validateSync } from 'class-validator';
 import { plainToClass } from 'class-transformer';
-import { SessionsModule } from './sessions/sessions.module'; // Import the new module
+import { SessionsModule } from './sessions/sessions.module';
 import { SignalingModule } from "./signaling/signaling.module";
 
 class EnvironmentVariables {
@@ -91,8 +91,8 @@ function validate(config: Record<string, unknown>) {
     AudioTapModule,
     EgressModule,
     HealthCheckModule,
-    SessionsModule, 
-    SignalingModule, 
+    SessionsModule,
+    SignalingModule,
   ],
   controllers: [MediaControlController],
   providers: [MediaControlService],
