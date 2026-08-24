@@ -57,6 +57,7 @@ function validate(config: Record<string, unknown>) {
   });
   const errors = validateSync(validatedConfig, {
     skipMissingProperties: false,
+    forbidUnknownValues: false,
   });
 
   if (errors.length > 0) {

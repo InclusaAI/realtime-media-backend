@@ -3,6 +3,7 @@ import { EgressService } from "./egress.service";
 import { EgressController } from "./egress.controller";
 import { SfuAdapterModule } from "../sfu-adapter/sfu-adapter.module";
 import { AudioChunkHandler } from "../audio-tap/audio-chunk.handler";
+import { VideoFrameHandler } from "./video-frame.handler";
 import { EgressDocsController } from "./egress-docs.controller";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -29,7 +30,12 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
     ]),
   ],
   controllers: [EgressDocsController],
-  providers: [EgressService, EgressController, AudioChunkHandler],
-  exports: [EgressService, EgressController, AudioChunkHandler],
+  providers: [
+    EgressService,
+    EgressController,
+    AudioChunkHandler,
+    VideoFrameHandler,
+  ],
+  exports: [EgressService, EgressController, AudioChunkHandler, VideoFrameHandler],
 })
 export class EgressModule {}

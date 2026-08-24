@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { NestFactory } from "@nestjs/core";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { Logger } from "@nestjs/common";
@@ -24,6 +25,13 @@ async function bootstrap() {
       },
       consumer: {
         groupId: "realtime-media-backend",
+      },
+      // Retry connecting to Kafka indefinitely so the server
+      // can start even when Kafka is not available (e.g. local dev)
+      retry: {
+        retries: Infinity,
+        initialRetryTime: 1000,
+        maxRetryTime: 30000,
       },
     },
   });
@@ -55,6 +63,28 @@ async function bootstrap() {
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
   });
 
+  const port = configService.get<number>("PORT") || 3001;
+
+  // Start HTTP server FIRST
+  await app.listen(port);
+  logger.log(`🎬 Realtime Media Backend running on http://localhost:${port}`);
+  logger.log(
+    `📚 API Documentation available at http://localhost:${port}/api/docs`,
+  );
+
+  // Start Kafka microservice AFTER HTTP server is up.
+  // Use startAllMicroservices() without blocking — it will retry
+  // Kafka connections in the background indefinitely.
+  try {
+    await app.startAllMicroservices();
+    logger.log(`🔌 Kafka microservice connected and consuming events`);
+  } catch (error) {
+    logger.warn(
+      `⚠️  Kafka microservice failed to connect (will retry in background)`,
+    );
+    logger.debug(error);
+  }
+
   // Graceful shutdown
   const shutdownSignals: NodeJS.Signals[] = ["SIGTERM", "SIGINT"];
 
@@ -63,7 +93,6 @@ async function bootstrap() {
       logger.log(`Received ${signal}, starting graceful shutdown...`);
 
       try {
-        // Stop accepting new connections
         await app.close();
         logger.log("Application closed successfully");
         process.exit(0);
@@ -73,19 +102,6 @@ async function bootstrap() {
       }
     });
   }
-
-  // Start microservice (Kafka consumers)
-  await app.startAllMicroservices();
-
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
-  logger.log(`🎬 Realtime Media Backend running on http://localhost:${port}`);
-  logger.log(
-    `📚 API Documentation available at http://localhost:${port}/api/docs`,
-  );
-  logger.log(
-    `🔌 Kafka microservice connected and consuming events`,
-  );
 }
 
 bootstrap();

@@ -46,7 +46,7 @@ export class KafkaEventsDocsController {
         "session.ended": {
           description:
             "Listened for by SessionEventController. " +
-            "Triggers cleanup of audio taps, egress sessions, and all room resources.",
+            "Triggers cleanup of audio taps, video egress, and all room resources.",
           source: "platform-backend",
           payload: {
             roomName: "string — LiveKit room name",
@@ -120,12 +120,63 @@ export class KafkaEventsDocsController {
         },
         "media.session.{roomName}.audio.metadata": {
           description:
-            "Published by AudioTapAgent when audio tracks are subscribed/unsubscribed.",
+            "Published by MediaTapAgent when audio tracks are subscribed/unsubscribed.",
           destination: "all consumers",
           payload: {
             event: "string — 'track_subscribed' | 'track_unsubscribed'",
             speakerId: "string",
             trackSid: "string",
+            kind: "string — 'audio'",
+            sequence: "number",
+            timestamp: "string — ISO 8601",
+            roomName: "string",
+          },
+        },
+        "media.session.{roomName}.video.frame": {
+          description:
+            "Published by VideoFrameHandler when video frames are received from LiveKit Egress. " +
+            "Frames are sampled at 15fps (66.67ms interval) with automatic frame dropping.",
+          destination: "AI services (sign recognition)",
+          payload: {
+            speakerId: "string",
+            sequence: "number",
+            timestamp: "string — ISO 8601",
+            frameData: "string — base64-encoded H264/VP8/VP9 video",
+            codec: "string — 'h264' | 'vp8' | 'vp9' | 'unknown'",
+            width: "number — frame width (0 if not parsed)",
+            height: "number — frame height (0 if not parsed)",
+            frameNumber: "number — same as sequence",
+            trackSid: "string",
+            roomName: "string",
+          },
+          example: {
+            speakerId: "user-123",
+            sequence: 150,
+            timestamp: "2025-01-15T10:30:00.000Z",
+            frameData: "AAAAIG...",
+            codec: "h264",
+            width: 1280,
+            height: 720,
+            frameNumber: 150,
+            trackSid: "TR_DEF456",
+            roomName: "my-room",
+          },
+          sampling: {
+            targetFps: 15,
+            intervalMs: 66.67,
+            behavior:
+              "Frames arriving faster than 66.67ms are dropped to maintain target FPS.",
+          },
+        },
+        "media.session.{roomName}.video.metadata": {
+          description:
+            "Published by MediaTapAgent when video tracks are subscribed/unsubscribed.",
+          destination: "all consumers",
+          payload: {
+            event: "string — 'track_subscribed' | 'track_unsubscribed'",
+            speakerId: "string",
+            trackSid: "string",
+            kind: "string — 'video'",
             sequence: "number",
             timestamp: "string — ISO 8601",
             roomName: "string",
