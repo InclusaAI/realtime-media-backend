@@ -3,7 +3,6 @@ import { IsString, IsNotEmpty, IsDate, IsArray, ValidateNested } from 'class-val
 import { Type } from 'class-transformer';
 import { MediaMetricsDto } from './media-metrics.dto';
 
-// A simple placeholder for a participant - this could be expanded later
 class ParticipantDto {
   @ApiProperty({ example: 'participant-user-123' })
   @IsString()
@@ -24,8 +23,12 @@ export class SessionStatusDto {
   id: string;
 
   @ApiProperty({
-    description: 'The current state of the session (e.g., active, ended).',
+    description:
+      'The current state of the session. ' +
+      'States: initializing, active, reconnecting, ending, ended. ' +
+      'Reconnecting means a participant disconnected but is within the 30s grace period.',
     example: 'active',
+    enum: ['initializing', 'active', 'reconnecting', 'ending', 'ended'],
   })
   @IsString()
   @IsNotEmpty()

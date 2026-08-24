@@ -28,6 +28,16 @@ interface AuthenticatedSocket extends Socket {
   user?: AuthenticatedUser;
 }
 
+/**
+ * Connection quality report from client.
+ */
+interface QualityReport {
+  rtt: number;
+  packetLoss: number;
+  jitter: number;
+  bitrate: number;
+}
+
 @WebSocketGateway()
 export class SignalingGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy
@@ -39,6 +49,9 @@ export class SignalingGateway
 
   /** Track connected clients by room for cleanup */
   private readonly roomClients: Map<string, Set<string>> = new Map();
+
+  /** Track socket -> { roomName, participantIdentity } for reconnection */
+  private readonly socketInfo: Map<string, { roomName: string; participantIdentity: string }> = new Map();
 
   constructor(
     private readonly sfuAdapter: LiveKitAdapterService,
@@ -54,15 +67,37 @@ export class SignalingGateway
   handleDisconnect(client: AuthenticatedSocket): void {
     this.logger.log(`Client disconnected: ${client.id}`);
 
-    // Clean up room tracking for disconnected client
-    for (const [roomName, clients] of this.roomClients) {
-      if (clients.has(client.id)) {
+    const info = this.socketInfo.get(client.id);
+    if (info) {
+      const { roomName, participantIdentity } = info;
+
+      // Remove from room tracking
+      const clients = this.roomClients.get(roomName);
+      if (clients) {
         clients.delete(client.id);
         if (clients.size === 0) {
           this.roomClients.delete(roomName);
         }
-        break;
       }
+
+      // Start reconnection grace period
+      const { gracePeriodMs } = this.sessionsService.removeParticipant(
+        roomName,
+        participantIdentity,
+      );
+
+      this.logger.log(
+        `${participantIdentity} disconnected from room ${roomName} (grace period: ${gracePeriodMs}ms)`,
+      );
+
+      // Notify other participants that this person disconnected
+      this.server.to(roomName).emit('participant-disconnected', {
+        participantIdentity,
+        disconnectedAt: new Date().toISOString(),
+        gracePeriodMs,
+      });
+
+      this.socketInfo.delete(client.id);
     }
   }
 
@@ -96,14 +131,29 @@ export class SignalingGateway
       }
       this.roomClients.get(roomName)!.add(client.id);
 
-      // Sync participant roster with SessionsService
-      this.sessionsService.addParticipant(roomName, participantIdentity);
+      // Track socket info for reconnection handling
+      this.socketInfo.set(client.id, { roomName, participantIdentity });
 
-      const joinedEvent = {
-        participantIdentity,
-        joinedAt: new Date().toISOString(),
-      };
-      this.server.to(roomName).emit('participant-joined', joinedEvent);
+      // Sync participant roster with SessionsService
+      const { isReconnection } = this.sessionsService.addParticipant(roomName, participantIdentity);
+
+      if (isReconnection) {
+        // Notify other participants that this person reconnected
+        this.server.to(roomName).emit('participant-reconnected', {
+          participantIdentity,
+          reconnectedAt: new Date().toISOString(),
+        });
+
+        this.logger.log(
+          `${participantIdentity} RECONNECTED to room ${roomName}`,
+        );
+      } else {
+        const joinedEvent = {
+          participantIdentity,
+          joinedAt: new Date().toISOString(),
+        };
+        this.server.to(roomName).emit('participant-joined', joinedEvent);
+      }
 
       const kafkaEvent: KafkaParticipantEvent = {
         participantIdentity,
@@ -126,7 +176,7 @@ export class SignalingGateway
       });
 
       this.logger.log(
-        `${participantIdentity} joined room ${roomName}`,
+        `${participantIdentity} joined room ${roomName}${isReconnection ? ' (reconnection)' : ''}`,
       );
     } catch (error) {
       this.logger.error(
@@ -165,7 +215,9 @@ export class SignalingGateway
         }
       }
 
-      // Sync participant roster with SessionsService
+      this.socketInfo.delete(client.id);
+
+      // Sync participant roster with SessionsService (immediate removal, no grace period)
       this.sessionsService.removeParticipant(data.roomName, data.participantIdentity);
 
       const leftEvent = {
@@ -196,6 +248,53 @@ export class SignalingGateway
         message: 'Failed to leave room',
         details: (error as Error).message,
       });
+    }
+  }
+
+  /**
+   * Handle connection quality reports from clients.
+   * Clients should periodically send quality metrics (RTT, packet loss, etc.)
+   * so the server can track connection health and trigger adaptive quality.
+   */
+  @SubscribeMessage('quality-report')
+  handleQualityReport(
+    @MessageBody() data: QualityReport,
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ): void {
+    try {
+      const info = this.socketInfo.get(client.id);
+      if (!info) return;
+
+      const { roomName, participantIdentity } = info;
+
+      // Update session metrics
+      this.sessionsService.updateConnectionQuality(roomName, participantIdentity, {
+        rtt: data.rtt,
+        packetLoss: data.packetLoss,
+        jitter: data.jitter,
+        bitrate: data.bitrate,
+      });
+
+      // Check if adaptive quality adjustment is needed
+      if (data.packetLoss > 10 || data.rtt > 300) {
+        this.logger.warn(
+          `Poor connection quality for ${participantIdentity} in room ${roomName}: ` +
+          `RTT=${data.rtt}ms, loss=${data.packetLoss}%, jitter=${data.jitter}ms`,
+        );
+
+        // Notify client to reduce quality
+        client.emit('quality-adapt', {
+          reason: data.packetLoss > 10 ? 'high_packet_loss' : 'high_rtt',
+          suggestedQuality: data.packetLoss > 20 ? 'low' : 'medium',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      this.logger.debug(
+        `Quality report from ${participantIdentity}: RTT=${data.rtt}ms loss=${data.packetLoss}%`,
+      );
+    } catch (error) {
+      this.logger.error(`Error processing quality report from ${client.id}`, error);
     }
   }
 
@@ -297,6 +396,7 @@ export class SignalingGateway
 
     await Promise.all(cleanupPromises);
     this.roomClients.clear();
+    this.socketInfo.clear();
     this.logger.log('SignalingGateway cleanup complete');
   }
 }

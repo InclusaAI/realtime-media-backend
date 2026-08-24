@@ -11,6 +11,7 @@ import { Logger } from "@nestjs/common";
 import { Server, Socket } from "socket.io";
 import { EgressService } from "./egress.service";
 import { AudioChunkHandler } from "../audio-tap/audio-chunk.handler";
+import { VideoFrameHandler } from "./video-frame.handler";
 
 /**
  * WebSocket gateway that receives media data from LiveKit Egress.
@@ -20,6 +21,12 @@ import { AudioChunkHandler } from "../audio-tap/audio-chunk.handler";
  *
  * Binary messages contain raw audio/video frames that are parsed,
  * enriched with metadata, and published to Kafka.
+ *
+ * Query params:
+ *   - roomName: LiveKit room name
+ *   - trackSid: track SID being egressed
+ *   - kind: "audio" or "video" (default: "audio")
+ *   - participantIdentity: identity of the participant owning the track
  */
 @WebSocketGateway({ namespace: "/egress" })
 export class EgressController
@@ -42,6 +49,7 @@ export class EgressController
   constructor(
     private readonly egressService: EgressService,
     private readonly audioChunkHandler: AudioChunkHandler,
+    private readonly videoFrameHandler: VideoFrameHandler
   ) {}
 
   handleConnection(client: Socket): void {
@@ -53,21 +61,28 @@ export class EgressController
       this.sockets.set(trackSid, client);
       this.socketMeta.set(client.id, { roomName, trackSid, kind });
       this.logger.log(
-        `Egress client connected: room=${roomName} track=${trackSid} kind=${kind} (socket=${client.id})`,
+        `Egress client connected: room=${roomName} track=${trackSid} kind=${kind} (socket=${client.id})`
       );
 
       // Register track-to-participant mapping if available
       const participantIdentity = client.handshake.query
         .participantIdentity as string;
       if (participantIdentity) {
-        this.audioChunkHandler.setTrackParticipant(
-          trackSid,
-          participantIdentity,
-        );
+        if (kind === "video") {
+          this.videoFrameHandler.setTrackParticipant(
+            trackSid,
+            participantIdentity
+          );
+        } else {
+          this.audioChunkHandler.setTrackParticipant(
+            trackSid,
+            participantIdentity
+          );
+        }
       }
     } else {
       this.logger.warn(
-        `Egress client connected without trackSid query param (socket=${client.id})`,
+        `Egress client connected without trackSid query param (socket=${client.id})`
       );
     }
   }
@@ -78,7 +93,7 @@ export class EgressController
       this.sockets.delete(meta.trackSid);
       this.socketMeta.delete(client.id);
       this.logger.log(
-        `Egress client disconnected: room=${meta.roomName} track=${meta.trackSid} (socket=${client.id})`,
+        `Egress client disconnected: room=${meta.roomName} track=${meta.trackSid} (socket=${client.id})`
       );
     }
   }
@@ -90,19 +105,19 @@ export class EgressController
   @SubscribeMessage("audio")
   handleAudioData(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: Buffer,
+    @MessageBody() data: Buffer
   ): void {
     const meta = this.socketMeta.get(client.id);
     if (!meta) {
       this.logger.warn(
-        `Received audio data from unregistered socket ${client.id}`,
+        `Received audio data from unregistered socket ${client.id}`
       );
       return;
     }
 
     if (meta.kind !== "audio") {
       this.logger.warn(
-        `Received audio data on non-audio track ${meta.trackSid}`,
+        `Received audio data on non-audio track ${meta.trackSid}`
       );
       return;
     }
@@ -110,7 +125,38 @@ export class EgressController
     this.audioChunkHandler.processAudioFrame(
       meta.roomName,
       meta.trackSid,
-      Buffer.isBuffer(data) ? data : Buffer.from(data),
+      Buffer.isBuffer(data) ? data : Buffer.from(data)
+    );
+  }
+
+  /**
+   * Handle binary video data from LiveKit Egress.
+   * LiveKit sends raw video frames as binary WebSocket messages.
+   */
+  @SubscribeMessage("video")
+  handleVideoData(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: Buffer
+  ): void {
+    const meta = this.socketMeta.get(client.id);
+    if (!meta) {
+      this.logger.warn(
+        `Received video data from unregistered socket ${client.id}`
+      );
+      return;
+    }
+
+    if (meta.kind !== "video") {
+      this.logger.warn(
+        `Received video data on non-video track ${meta.trackSid}`
+      );
+      return;
+    }
+
+    this.videoFrameHandler.processVideoFrame(
+      meta.roomName,
+      meta.trackSid,
+      Buffer.isBuffer(data) ? data : Buffer.from(data)
     );
   }
 
@@ -119,7 +165,10 @@ export class EgressController
    * Some LiveKit Egress versions send data as raw binary frames
    * without an event name.
    */
-  handleRawMessage(client: Socket, data: Buffer | ArrayBuffer | ArrayBufferLike): void {
+  handleRawMessage(
+    client: Socket,
+    data: Buffer | ArrayBuffer | ArrayBufferLike
+  ): void {
     const meta = this.socketMeta.get(client.id);
     if (!meta) {
       return;
@@ -138,10 +187,15 @@ export class EgressController
       this.audioChunkHandler.processAudioFrame(
         meta.roomName,
         meta.trackSid,
-        buffer,
+        buffer
+      );
+    } else if (meta.kind === "video") {
+      this.videoFrameHandler.processVideoFrame(
+        meta.roomName,
+        meta.trackSid,
+        buffer
       );
     }
-    // Video frames would be handled here in Phase 3
   }
 
   /**
@@ -154,7 +208,7 @@ export class EgressController
       socket.emit(eventName, data);
     } else {
       this.logger.warn(
-        `No egress socket found for track ${trackSid}, dropping event ${eventName}`,
+        `No egress socket found for track ${trackSid}, dropping event ${eventName}`
       );
     }
   }

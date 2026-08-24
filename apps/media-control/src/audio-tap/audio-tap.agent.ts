@@ -10,35 +10,37 @@ import { ClientKafka } from "@nestjs/microservices";
 import { Logger } from "@nestjs/common";
 
 /**
- * AudioTapAgent connects to a LiveKit room as a subscriber,
- * captures audio tracks from participants, and publishes
- * audio chunks to Kafka for downstream AI services (ASR).
+ * MediaTapAgent connects to a LiveKit room as a subscriber,
+ * captures audio and video tracks from participants, and publishes
+ * metadata to Kafka for downstream AI services.
  *
  * Architecture:
- * - Subscribes to all audio tracks in a room
+ * - Subscribes to all audio AND video tracks in a room
  * - Tracks which participant owns each track (trackSid -> identity)
- * - Publishes metadata (speakerId, trackSid) to Kafka
- * - Actual audio data flows via LiveKit Egress -> WebSocket -> AudioChunkHandler
+ * - Publishes metadata (speakerId, trackSid, kind) to Kafka
+ * - Actual media data flows via LiveKit Egress -> WebSocket -> AudioChunkHandler/VideoFrameHandler
  *
- * The agent itself handles the LiveKit SDK connection and track management.
- * Raw audio processing is delegated to AudioChunkHandler via the Egress pipeline.
+ * The agent handles the LiveKit SDK connection and track management.
+ * Raw media processing is delegated to handlers via the Egress pipeline.
  */
-export class AudioTapAgent {
-  private readonly logger = new Logger(AudioTapAgent.name);
+export class MediaTapAgent {
+  private readonly logger = new Logger(MediaTapAgent.name);
   private room: Room | null = null;
   private trackToParticipant: Map<string, string> = new Map();
+  private trackToKind: Map<string, "audio" | "video"> = new Map();
   private sequence: number = 0;
   private running: boolean = false;
 
-  /** Callback when a new audio track is subscribed */
+  /** Callback when a new track is subscribed */
   onTrackSubscribed?: (
     roomName: string,
     trackSid: string,
     participantIdentity: string,
+    kind: "audio" | "video",
   ) => void;
 
-  /** Callback when an audio track is unsubscribed */
-  onTrackUnsubscribed?: (trackSid: string) => void;
+  /** Callback when a track is unsubscribed */
+  onTrackUnsubscribed?: (trackSid: string, kind: "audio" | "video") => void;
 
   constructor(
     private readonly serverUrl: string,
@@ -46,13 +48,13 @@ export class AudioTapAgent {
   ) {}
 
   /**
-   * Connect to the room and start capturing audio tracks.
+   * Connect to the room and start capturing audio + video tracks.
    * @param roomName - LiveKit room name to join
    * @param token - access token for authentication
    */
   async start(roomName: string, token: string): Promise<void> {
     if (this.running) {
-      this.logger.warn("AudioTapAgent already running");
+      this.logger.warn("MediaTapAgent already running");
       return;
     }
 
@@ -61,7 +63,7 @@ export class AudioTapAgent {
       dynacast: false,
     });
 
-    // Handle new audio track subscriptions
+    // Handle new track subscriptions (audio + video)
     this.room.on(
       RoomEvent.TrackSubscribed,
       (
@@ -69,31 +71,34 @@ export class AudioTapAgent {
         publication: RemoteTrackPublication,
         participant: RemoteParticipant,
       ) => {
-        if (track.kind === Track.Kind.Audio) {
-          const trackSid = track.sid;
-          const participantIdentity = participant.identity;
+        const trackSid = track.sid;
+        const participantIdentity = participant.identity;
+        const kind: "audio" | "video" =
+          track.kind === Track.Kind.Audio ? "audio" : "video";
 
-          this.logger.log(
-            `Subscribed to audio track ${trackSid} from ${participantIdentity} in room ${roomName}`,
-          );
+        this.logger.log(
+          `Subscribed to ${kind} track ${trackSid} from ${participantIdentity} in room ${roomName}`,
+        );
 
-          this.trackToParticipant.set(trackSid, participantIdentity);
+        this.trackToParticipant.set(trackSid, participantIdentity);
+        this.trackToKind.set(trackSid, kind);
 
-          // Notify callback (used by AudioTapService to start egress)
-          this.onTrackSubscribed?.(
-            roomName,
-            trackSid,
-            participantIdentity,
-          );
+        // Notify callback (used by AudioTapService to start egress)
+        this.onTrackSubscribed?.(
+          roomName,
+          trackSid,
+          participantIdentity,
+          kind,
+        );
 
-          // Publish participant joined event to Kafka
-          this.publishParticipantAudioEvent(
-            roomName,
-            trackSid,
-            participantIdentity,
-            "track_subscribed",
-          );
-        }
+        // Publish track metadata event to Kafka
+        this.publishTrackEvent(
+          roomName,
+          trackSid,
+          participantIdentity,
+          kind,
+          "track_subscribed",
+        );
       },
     );
 
@@ -102,38 +107,40 @@ export class AudioTapAgent {
       const trackSid = track.sid;
       const participantIdentity =
         this.trackToParticipant.get(trackSid) || "unknown";
+      const kind = this.trackToKind.get(trackSid) || "audio";
 
       this.logger.log(
-        `Audio track ${trackSid} unsubscribed from ${participantIdentity}`,
+        `${kind} track ${trackSid} unsubscribed from ${participantIdentity}`,
       );
 
       this.trackToParticipant.delete(trackSid);
-      this.onTrackUnsubscribed?.(trackSid);
+      this.trackToKind.delete(trackSid);
+      this.onTrackUnsubscribed?.(trackSid, kind);
     });
 
     // Handle disconnection
     this.room.on(RoomEvent.Disconnected, () => {
-      this.logger.warn(`Audio tap disconnected from room ${roomName}`);
+      this.logger.warn(`Media tap disconnected from room ${roomName}`);
       this.running = false;
     });
 
     // Handle reconnection
     this.room.on(RoomEvent.Reconnected, () => {
-      this.logger.log(`Audio tap reconnected to room ${roomName}`);
+      this.logger.log(`Media tap reconnected to room ${roomName}`);
       this.running = true;
     });
 
     this.room.on(RoomEvent.Connected, () => {
-      this.logger.log(`Audio tap connected to room ${roomName}`);
+      this.logger.log(`Media tap connected to room ${roomName}`);
     });
 
     try {
       await this.room.connect(this.serverUrl, token);
       this.running = true;
-      this.logger.log(`AudioTapAgent started for room ${roomName}`);
+      this.logger.log(`MediaTapAgent started for room ${roomName}`);
     } catch (error) {
       this.logger.error(
-        `Failed to connect AudioTapAgent to room ${roomName}`,
+        `Failed to connect MediaTapAgent to room ${roomName}`,
         error,
       );
       this.running = false;
@@ -145,10 +152,11 @@ export class AudioTapAgent {
    * Publish a metadata event when a track is subscribed/unsubscribed.
    * This helps downstream services correlate tracks with participants.
    */
-  private publishParticipantAudioEvent(
+  private publishTrackEvent(
     roomName: string,
     trackSid: string,
     participantIdentity: string,
+    kind: "audio" | "video",
     event: string,
   ): void {
     this.sequence++;
@@ -157,13 +165,15 @@ export class AudioTapAgent {
       event,
       speakerId: participantIdentity,
       trackSid,
+      kind,
       sequence: this.sequence,
       timestamp: new Date().toISOString(),
       roomName,
     };
 
+    // Publish to kind-specific metadata topic
     this.kafkaClient.emit(
-      `media.session.${roomName}.audio.metadata`,
+      `media.session.${roomName}.${kind}.metadata`,
       message,
     );
   }
@@ -174,18 +184,19 @@ export class AudioTapAgent {
   async stop(): Promise<void> {
     this.running = false;
     this.trackToParticipant.clear();
+    this.trackToKind.clear();
     this.sequence = 0;
 
     if (this.room) {
       try {
         this.room.disconnect();
       } catch (error) {
-        this.logger.error("Error disconnecting audio tap room", error);
+        this.logger.error("Error disconnecting media tap room", error);
       }
       this.room = null;
     }
 
-    this.logger.log("AudioTapAgent stopped");
+    this.logger.log("MediaTapAgent stopped");
   }
 
   /**
@@ -201,4 +212,16 @@ export class AudioTapAgent {
   getTrackParticipants(): Map<string, string> {
     return new Map(this.trackToParticipant);
   }
+
+  /**
+   * Get the kind (audio/video) for a track.
+   */
+  getTrackKind(trackSid: string): "audio" | "video" | undefined {
+    return this.trackToKind.get(trackSid);
+  }
 }
+
+/**
+ * @deprecated Use MediaTapAgent instead. This alias is kept for backward compatibility.
+ */
+export const AudioTapAgent = MediaTapAgent;
