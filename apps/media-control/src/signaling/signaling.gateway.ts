@@ -18,8 +18,8 @@ import {
   AuthenticatedUser,
   LeaveRoomPayload,
   RelayPayload,
-  KafkaParticipantEvent,
 } from './types/signaling.types';
+import { validateParticipantEvent } from '../contracts/kafka-events';
 
 /**
  * Extended Socket type with authenticated user data.
@@ -155,11 +155,14 @@ export class SignalingGateway
         this.server.to(roomName).emit('participant-joined', joinedEvent);
       }
 
-      const kafkaEvent: KafkaParticipantEvent = {
-        participantIdentity,
-        roomName,
-        timestamp: new Date().toISOString(),
+      // Publish participant.joined event matching inclusaai_contracts ParticipantEvent schema
+      const kafkaEvent = {
+        session_id: roomName,
+        participant_id: participantIdentity,
+        event: "joined" as const,
+        timestamp_ms: Date.now(),
       };
+      validateParticipantEvent(kafkaEvent as Record<string, unknown>);
       this.kafkaClient.emit(
         `media.session.${roomName}.participant.joined`,
         kafkaEvent,
@@ -226,11 +229,14 @@ export class SignalingGateway
       };
       this.server.to(data.roomName).emit('participant-left', leftEvent);
 
-      const kafkaEvent: KafkaParticipantEvent = {
-        participantIdentity: data.participantIdentity,
-        roomName: data.roomName,
-        timestamp: new Date().toISOString(),
+      // Publish participant.left event matching inclusaai_contracts ParticipantEvent schema
+      const kafkaEvent = {
+        session_id: data.roomName,
+        participant_id: data.participantIdentity,
+        event: "left" as const,
+        timestamp_ms: Date.now(),
       };
+      validateParticipantEvent(kafkaEvent as Record<string, unknown>);
       this.kafkaClient.emit(
         `media.session.${data.roomName}.participant.left`,
         kafkaEvent,

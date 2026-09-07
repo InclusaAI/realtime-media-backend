@@ -28,7 +28,7 @@ import { EgressModule } from '../egress/egress.module';
       },
     ]),
   ],
-  controllers: [SessionsController, SessionEventController, KafkaEventsDocsController],
+  controllers: [KafkaEventsDocsController, SessionsController, SessionEventController],
   providers: [SessionsService],
   exports: [SessionsService],
 })

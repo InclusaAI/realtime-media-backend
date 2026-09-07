@@ -101,31 +101,12 @@ export interface QualityAdaptEvent {
 }
 
 /**
- * Kafka event for participant.joined
+ * Kafka event for participant.joined / participant.left
+ * Matches inclusaai_contracts ParticipantEvent schema.
  */
 export interface KafkaParticipantEvent {
-  participantIdentity: string;
-  roomName: string;
-  timestamp: string;
-}
-
-/**
- * Kafka event for participant.reconnected
- */
-export interface KafkaParticipantReconnectedEvent {
-  participantIdentity: string;
-  roomName: string;
-  wasDisconnectedAt: string;
-  reconnectedAt: string;
-  timestamp: string;
-}
-
-/**
- * Kafka event for participant.left (grace period expired)
- */
-export interface KafkaParticipantLeftEvent {
-  participantIdentity: string;
-  roomName: string;
-  reason: 'explicit_leave' | 'grace_period_expired';
-  timestamp: string;
+  session_id: string;
+  participant_id: string;
+  event: 'joined' | 'left';
+  timestamp_ms: number;
 }

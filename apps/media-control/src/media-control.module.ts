@@ -8,6 +8,7 @@ import kafkaConfig from "./config/kafka.config";
 import { AudioTapModule } from "./audio-tap/audio-tap.module";
 import { EgressModule } from "./egress/egress.module";
 import { HealthCheckModule } from "./health/health-check.module";
+import { join } from 'path';
 import { IsString, IsNotEmpty, IsNumber, IsUrl, validateSync } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 import { SessionsModule } from './sessions/sessions.module';
@@ -71,6 +72,7 @@ function validate(config: Record<string, unknown>) {
     ConfigModule.forRoot({
       load: [kafkaConfig],
       isGlobal: true,
+      envFilePath: join(__dirname, '..', '..', '..', '.env'),
       validate,
     }),
     ClientsModule.registerAsync([

@@ -1,5 +1,6 @@
 import { Injectable, Logger, Inject } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
+import { validateVideoFrame } from "../contracts/kafka-events";
 
 /**
  * Metrics for video frame processing.
@@ -158,26 +159,24 @@ export class VideoFrameHandler {
       const sequence = (this.sequences.get(seqKey) || 0) + 1;
       this.sequences.set(seqKey, sequence);
 
-      // Resolve speaker identity
-      const speakerId =
+      // Resolve presenter identity
+      const presenterId =
         this.trackParticipants.get(trackSid) || "unknown";
 
-      // Detect video codec from payload header
-      const codec = this.detectVideoCodec(payload);
-
-      // Build the Kafka message matching the AI services contract
+      // Build the Kafka message matching the inclusaai_contracts VideoFrame schema
       const message = {
-        speakerId,
+        session_id: roomName,
+        presenter_id: presenterId,
         sequence,
-        timestamp: new Date().toISOString(),
-        frameData: payload.toString("base64"),
-        codec,
+        timestamp_ms: Date.now(),
         width: 0, // Will be populated if we parse resolution headers
         height: 0,
-        frameNumber: sequence,
-        trackSid,
-        roomName,
+        fps: this.TARGET_FPS,
+        payload_b64: payload.toString("base64"),
       };
+
+      // Validate against contract schema before publishing
+      validateVideoFrame(message as Record<string, unknown>);
 
       // Publish to Kafka
       this.kafkaClient.emit(
@@ -188,7 +187,7 @@ export class VideoFrameHandler {
       metrics.framesPublished++;
 
       this.logger.debug(
-        `Video frame published: room=${roomName} track=${trackSid} seq=${sequence} size=${payload.length} codec=${codec}`
+        `Video frame published: room=${roomName} track=${trackSid} seq=${sequence} size=${payload.length}`
       );
     } catch (error) {
       metrics.publishFailures++;

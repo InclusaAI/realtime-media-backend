@@ -163,12 +163,12 @@ export class MediaTapAgent {
 
     const message = {
       event,
-      speakerId: participantIdentity,
-      trackSid,
+      speaker_id: participantIdentity,
+      track_sid: trackSid,
       kind,
       sequence: this.sequence,
-      timestamp: new Date().toISOString(),
-      roomName,
+      timestamp_ms: Date.now(),
+      session_id: roomName,
     };
 
     // Publish to kind-specific metadata topic

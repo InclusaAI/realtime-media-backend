@@ -7,7 +7,7 @@ import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
  * this controller provides documentation for the event-driven interfaces.
  */
 @ApiTags("Sessions")
-@Controller("api/sessions/events")
+@Controller("api/kafka-events")
 export class KafkaEventsDocsController {
   @Get()
   @ApiOperation({
@@ -84,82 +84,82 @@ export class KafkaEventsDocsController {
         },
         "media.session.{roomName}.participant.joined": {
           description:
-            "Published by SignalingGateway when a participant joins a room via WebSocket.",
-          destination: "all consumers",
+            "Published by SignalingGateway when a participant joins a room via WebSocket. " +
+            "Matches inclusaai_contracts ParticipantEvent schema.",
+          destination: "AI services (engagement)",
           payload: {
-            participantIdentity: "string",
-            roomName: "string",
-            timestamp: "string — ISO 8601",
+            session_id: "string — LiveKit room name (1:1 with session ID)",
+            participant_id: "string — participant identity",
+            event: "string — 'joined'",
+            timestamp_ms: "number — epoch milliseconds",
           },
         },
         "media.session.{roomName}.participant.left": {
           description:
-            "Published by SignalingGateway when a participant leaves a room via WebSocket.",
-          destination: "all consumers",
+            "Published by SignalingGateway when a participant explicitly leaves, or by SessionsService " +
+            "when a reconnection grace period expires. Matches inclusaai_contracts ParticipantEvent schema.",
+          destination: "AI services (engagement)",
           payload: {
-            participantIdentity: "string",
-            roomName: "string",
-            timestamp: "string — ISO 8601",
+            session_id: "string — LiveKit room name (1:1 with session ID)",
+            participant_id: "string — participant identity",
+            event: "string — 'left'",
+            timestamp_ms: "number — epoch milliseconds",
           },
         },
         "media.session.{roomName}.audio.chunk": {
           description:
-            "Published by AudioChunkHandler when raw audio frames are received from LiveKit Egress.",
+            "Published by AudioChunkHandler when raw audio frames are received from LiveKit Egress. " +
+            "Matches inclusaai_contracts AudioChunk schema.",
           destination: "AI services (ASR)",
           payload: {
-            speakerId: "string",
-            sequence: "number",
-            timestamp: "string — ISO 8601",
-            audioData: "string — base64-encoded Opus",
+            session_id: "string — LiveKit room name (1:1 with session ID)",
+            speaker_id: "string — participant identity",
+            sequence: "number — monotonically increasing per track",
+            timestamp_ms: "number — epoch milliseconds",
+            sample_rate: "number — 16000",
             encoding: "string — 'opus'",
-            sampleRate: "number — 48000",
-            channels: "number — 1",
-            trackSid: "string",
-            roomName: "string",
+            payload_b64: "string — base64-encoded audio bytes",
           },
         },
         "media.session.{roomName}.audio.metadata": {
           description:
-            "Published by MediaTapAgent when audio tracks are subscribed/unsubscribed.",
-          destination: "all consumers",
+            "Published by MediaTapAgent when audio tracks are subscribed/unsubscribed. Internal topic.",
+          destination: "internal",
           payload: {
             event: "string — 'track_subscribed' | 'track_unsubscribed'",
-            speakerId: "string",
-            trackSid: "string",
+            speaker_id: "string",
+            track_sid: "string",
             kind: "string — 'audio'",
             sequence: "number",
-            timestamp: "string — ISO 8601",
-            roomName: "string",
+            timestamp_ms: "number — epoch milliseconds",
+            session_id: "string",
           },
         },
         "media.session.{roomName}.video.frame": {
           description:
             "Published by VideoFrameHandler when video frames are received from LiveKit Egress. " +
-            "Frames are sampled at 15fps (66.67ms interval) with automatic frame dropping.",
-          destination: "AI services (sign recognition)",
+            "Frames are sampled at 15fps (66.67ms interval) with automatic frame dropping. " +
+            "Matches inclusaai_contracts VideoFrame schema.",
+          destination: "AI services (sign recognition, vision quality)",
           payload: {
-            speakerId: "string",
-            sequence: "number",
-            timestamp: "string — ISO 8601",
-            frameData: "string — base64-encoded H264/VP8/VP9 video",
-            codec: "string — 'h264' | 'vp8' | 'vp9' | 'unknown'",
+            session_id: "string — LiveKit room name (1:1 with session ID)",
+            presenter_id: "string — participant identity",
+            sequence: "number — monotonically increasing per track",
+            timestamp_ms: "number — epoch milliseconds",
             width: "number — frame width (0 if not parsed)",
             height: "number — frame height (0 if not parsed)",
-            frameNumber: "number — same as sequence",
-            trackSid: "string",
-            roomName: "string",
+            fps: "number — target FPS (15 per ADR-0007)",
+            payload_b64: "string — base64-encoded video frame",
           },
           example: {
-            speakerId: "user-123",
+            session_id: "my-room",
+            presenter_id: "user-123",
             sequence: 150,
-            timestamp: "2025-01-15T10:30:00.000Z",
-            frameData: "AAAAIG...",
-            codec: "h264",
+            timestamp_ms: 1705315800000,
             width: 1280,
             height: 720,
-            frameNumber: 150,
-            trackSid: "TR_DEF456",
-            roomName: "my-room",
+            fps: 15,
+            payload_b64: "AAAAIG...",
           },
           sampling: {
             targetFps: 15,
@@ -170,16 +170,16 @@ export class KafkaEventsDocsController {
         },
         "media.session.{roomName}.video.metadata": {
           description:
-            "Published by MediaTapAgent when video tracks are subscribed/unsubscribed.",
-          destination: "all consumers",
+            "Published by MediaTapAgent when video tracks are subscribed/unsubscribed. Internal topic.",
+          destination: "internal",
           payload: {
             event: "string — 'track_subscribed' | 'track_unsubscribed'",
-            speakerId: "string",
-            trackSid: "string",
+            speaker_id: "string",
+            track_sid: "string",
             kind: "string — 'video'",
             sequence: "number",
-            timestamp: "string — ISO 8601",
-            roomName: "string",
+            timestamp_ms: "number — epoch milliseconds",
+            session_id: "string",
           },
         },
       },

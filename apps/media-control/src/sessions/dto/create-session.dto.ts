@@ -1,10 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
 
+/**
+ * Communication mode — matches platform-backend Prisma enum CommunicationMode.
+ */
 export enum SessionMode {
-  PHYSICAL = 'physical',
-  VIRTUAL = 'virtual',
-  HYBRID = 'hybrid',
+  SPEECH = 'SPEECH',
+  SIGN_LANGUAGE = 'SIGN_LANGUAGE',
+  HYBRID = 'HYBRID',
 }
 
 export class CreateSessionDto {

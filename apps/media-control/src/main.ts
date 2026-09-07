@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from "@nestjs/core";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
-import { Logger } from "@nestjs/common";
+import { Logger, ValidationPipe } from "@nestjs/common";
 import { MicroserviceOptions, Transport } from "@nestjs/microservices";
 import { ConfigService } from "@nestjs/config";
 import { MediaControlModule } from "./media-control.module";
@@ -10,6 +10,15 @@ async function bootstrap() {
   const logger = new Logger("Bootstrap");
 
   const app = await NestFactory.create(MediaControlModule);
+
+  // Enable global DTO validation (class-validator decorators)
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   // Connect microservice transport for Kafka consumers
   const configService = app.get(ConfigService);
