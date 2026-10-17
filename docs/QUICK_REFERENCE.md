@@ -194,8 +194,13 @@ LIVEKIT_SERVER_URL=http://localhost:7880
 LIVEKIT_API_KEY=devkey
 LIVEKIT_API_SECRET=secret
 
-# Kafka
-KAFKA_BROKERS=localhost:9092
+# Kafka (plaintext local Redpanda)
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+# ...or a managed broker (Aiven):
+# KAFKA_SECURITY_PROTOCOL=SASL_SSL
+# KAFKA_USERNAME=<sasl-username>
+# KAFKA_PASSWORD=<sasl-password>
+# KAFKA_CA_CERT=<path to PEM, or the inline PEM body>
 
 # Redis
 REDIS_URL=redis://localhost:6379

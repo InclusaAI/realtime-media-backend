@@ -7,11 +7,14 @@ import { SessionEventController } from './session-event.controller';
 import { KafkaEventsDocsController } from './kafka-events-docs.controller';
 import { AudioTapModule } from '../audio-tap/audio-tap.module';
 import { EgressModule } from '../egress/egress.module';
+import { KafkaAdminModule } from '../kafka/kafka-admin.module';
+import { getKafkaClientOptions } from '../config/kafka.config';
 
 @Module({
   imports: [
     AudioTapModule,
     EgressModule,
+    KafkaAdminModule,
     ClientsModule.registerAsync([
       {
         name: 'KAFKA_SERVICE',
@@ -19,9 +22,7 @@ import { EgressModule } from '../egress/egress.module';
         useFactory: (configService: ConfigService) => ({
           transport: Transport.KAFKA,
           options: {
-            client: {
-              brokers: configService.get<string[]>('kafka.brokers'),
-            },
+            client: getKafkaClientOptions(configService),
           },
         }),
         inject: [ConfigService],

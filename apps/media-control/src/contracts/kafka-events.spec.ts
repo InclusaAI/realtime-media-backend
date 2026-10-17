@@ -3,6 +3,8 @@ import {
   validateVideoFrame,
   validateParticipantEvent,
   Topics,
+  isValidSessionId,
+  sessionTopics,
   AudioChunkEvent,
   VideoFrameEvent,
   ParticipantEvent,
@@ -182,6 +184,65 @@ describe('Kafka Event Contracts', () => {
       expect(Topics.participantLeft('room-1')).toBe(
         'media.session.room-1.participant.left',
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Per-session topic provisioning
+  // ---------------------------------------------------------------------------
+  describe('isValidSessionId', () => {
+    it('accepts the Prisma cuid shape and room names seen in tests', () => {
+      expect(isValidSessionId('clx01hzy3k0000qwv4h7bfgh2a')).toBe(true);
+      expect(isValidSessionId('room-1')).toBe(true);
+      expect(isValidSessionId('clx_full_pipeline_test')).toBe(true);
+    });
+
+    it('rejects dots, because ai-services cannot map them back', () => {
+      // ai-services resolves topics with ^media\.session\.[^.]+\.audio\.chunk$
+      expect(isValidSessionId('a.b')).toBe(false);
+    });
+
+    it('rejects topic-name metacharacters and path traversal', () => {
+      expect(isValidSessionId('room/1')).toBe(false);
+      expect(isValidSessionId('room 1')).toBe(false);
+      expect(isValidSessionId('a,b')).toBe(false);
+      expect(isValidSessionId('a=b')).toBe(false);
+    });
+
+    it('rejects empty and non-string values', () => {
+      expect(isValidSessionId('')).toBe(false);
+      expect(isValidSessionId(undefined)).toBe(false);
+      expect(isValidSessionId(null)).toBe(false);
+      expect(isValidSessionId(42)).toBe(false);
+    });
+  });
+
+  describe('sessionTopics', () => {
+    it('returns all six per-session topics', () => {
+      expect(sessionTopics('room-1')).toEqual([
+        'media.session.room-1.audio.chunk',
+        'media.session.room-1.video.frame',
+        'media.session.room-1.participant.joined',
+        'media.session.room-1.participant.left',
+        'media.session.room-1.audio.metadata',
+        'media.session.room-1.video.metadata',
+      ]);
+    });
+
+    it('includes every topic ai-services subscribes to', () => {
+      const topics = sessionTopics('room-1');
+
+      // ai-services AUDIO_CHUNK / VIDEO_FRAME / PARTICIPANT subscription
+      // patterns (shared/kafka_clients/.../topics.py).
+      expect(topics).toContain('media.session.room-1.audio.chunk');
+      expect(topics).toContain('media.session.room-1.video.frame');
+      expect(topics).toContain('media.session.room-1.participant.joined');
+      expect(topics).toContain('media.session.room-1.participant.left');
+    });
+
+    it('produces no duplicate topics', () => {
+      const topics = sessionTopics('room-1');
+      expect(new Set(topics).size).toBe(topics.length);
     });
   });
 });

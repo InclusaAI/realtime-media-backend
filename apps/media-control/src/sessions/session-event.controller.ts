@@ -5,7 +5,10 @@ import { EgressService } from "../egress/egress.service";
 import {
   SessionCreatedEvent,
   SessionEndedEvent,
+  isValidSessionId,
+  sessionTopics,
 } from "../contracts/kafka-events";
+import { KafkaAdminService } from "../kafka/kafka-admin.service";
 
 /**
  * Handles Kafka events for session lifecycle management.
@@ -25,6 +28,7 @@ export class SessionEventController {
   constructor(
     private readonly audioTapService: AudioTapService,
     private readonly egressService: EgressService,
+    private readonly kafkaAdmin: KafkaAdminService,
   ) {}
 
   /**
@@ -43,6 +47,22 @@ export class SessionEventController {
     this.logger.log(
       `Session created event received: sessionId=${roomName} presentationId=${data.presentationId}`,
     );
+
+    // The sessionId reaches us over the wire and is interpolated into topic
+    // names, so refuse anything that is not a plain identifier before doing
+    // any work with it.
+    if (!isValidSessionId(roomName)) {
+      this.logger.error(
+        `Rejecting session.created with invalid sessionId: ${JSON.stringify(roomName)}. ` +
+          'Expected letters, digits, "-" or "_" only.',
+      );
+      return;
+    }
+
+    // Provision this session's topics before anything publishes to them.
+    // Managed brokers have auto-creation off, so skipping this would make every
+    // later emit() fail with UNKNOWN_TOPIC_OR_PARTITION.
+    await this.kafkaAdmin.ensureTopics(sessionTopics(roomName));
 
     // Pre-warm: start media tap (audio + video) for this room
     // This ensures we're ready when participants start publishing

@@ -4,8 +4,13 @@ import {
   AccessToken,
   EgressClient,
   RoomServiceClient,
+  TrackType,
 } from 'livekit-server-sdk';
-import { SfuAdapter, TrackInfo } from './interfaces/sfu-adapter.interface';
+import {
+  DiscoveredTrack,
+  SfuAdapter,
+  TrackInfo,
+} from './interfaces/sfu-adapter.interface';
 
 @Injectable()
 export class LiveKitAdapterService implements SfuAdapter, OnModuleDestroy {
@@ -49,6 +54,37 @@ export class LiveKitAdapterService implements SfuAdapter, OnModuleDestroy {
       this.logger.error(`Failed to get room state for ${roomName}`, error);
       throw error;
     }
+  }
+
+  /**
+   * Snapshot every audio/video track published in a room, flattened across
+   * participants.
+   *
+   * Uses the server-side Room API rather than joining as a participant — the
+   * media itself is extracted by Egress, so track *metadata* is all we need,
+   * and joining would mean opening a real WebRTC connection from Node.
+   */
+  async listTracks(roomName: string): Promise<DiscoveredTrack[]> {
+    const participants = await this.roomService.listParticipants(roomName);
+
+    const tracks: DiscoveredTrack[] = [];
+    for (const participant of participants) {
+      for (const track of participant.tracks) {
+        // TrackType is AUDIO = 0 / VIDEO = 1. Anything else (e.g. screen-share
+        // variants are still VIDEO) is not media we route.
+        if (track.type !== TrackType.AUDIO && track.type !== TrackType.VIDEO) {
+          continue;
+        }
+
+        tracks.push({
+          trackSid: track.sid,
+          participantIdentity: participant.identity,
+          kind: track.type === TrackType.AUDIO ? 'audio' : 'video',
+        });
+      }
+    }
+
+    return tracks;
   }
 
   /**

@@ -53,7 +53,14 @@ I've completed a **comprehensive analysis and setup** of your Realtime Media Bac
 - Key concepts
 - One-page overview
 
-### 7. **ARCHITECTURE.md** 🏗️ SYSTEM DESIGN
+### 7. **KAFKA_SETUP.md** 🔗 BROKER CONFIGURATION & TOPICS
+
+- `KAFKA_*` env vars (shared contract with ai-services)
+- Local Redpanda vs managed brokers (Aiven, SASL_SSL, CA pinning)
+- Inbound / outbound topics and runtime provisioning
+- Verification and troubleshooting
+
+### 8. **ARCHITECTURE.md** 🏗️ SYSTEM DESIGN
 
 - Full system architecture diagrams
 - Data flow visualizations

@@ -150,6 +150,43 @@ export const Topics = {
   sessionEnded: 'session.ended' as const,
 } as const;
 
+/**
+ * Session ids arrive on the wire from platform-backend and are interpolated into
+ * topic names, so they are validated before use: `[A-Za-z0-9_-]+`.
+ *
+ * Dots are rejected deliberately. ai-services maps a concrete topic back to an
+ * event key with `^media\.session\.[^.]+\.audio\.chunk$` — a dotted id would
+ * publish successfully but never resolve, silently dropping the message. Prisma
+ * cuids (`clx...`) and the room names used in tests all satisfy this.
+ */
+export const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+export function isValidSessionId(sessionId: unknown): sessionId is string {
+  return typeof sessionId === 'string' && SESSION_ID_PATTERN.test(sessionId);
+}
+
+/**
+ * Every per-session topic this service publishes to.
+ *
+ * Provisioned up-front on `session.created` because managed brokers (Aiven,
+ * Confluent) ship with auto-creation disabled — without this, the first
+ * emit() for any session fails with UNKNOWN_TOPIC_OR_PARTITION.
+ *
+ * These are the four consumed by ai-services (`.audio.chunk`, `.video.frame`,
+ * `.participant.joined`, `.participant.left`) plus two internal
+ * `.metadata` topics used for track lifecycle tracking.
+ */
+export function sessionTopics(sessionId: string): string[] {
+  return [
+    Topics.audioChunk(sessionId),
+    Topics.videoFrame(sessionId),
+    Topics.participantJoined(sessionId),
+    Topics.participantLeft(sessionId),
+    Topics.audioMetadata(sessionId),
+    Topics.videoMetadata(sessionId),
+  ];
+}
+
 // ---------------------------------------------------------------------------
 // Runtime validation (optional — enable in dev/staging to catch drift early)
 // ---------------------------------------------------------------------------
