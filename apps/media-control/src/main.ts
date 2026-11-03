@@ -69,7 +69,19 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup("api/docs", app, document);
+  const swaggerOptions = {
+    customSiteTitle: "Realtime Media Backend API",
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      filter: true,
+      tryItOutEnabled: true,
+    },
+  };
+
+  // Support the short URL and retain the existing versioned documentation URL.
+  SwaggerModule.setup("docs", app, document, swaggerOptions);
+  SwaggerModule.setup("api/docs", app, document, swaggerOptions);
 
   // Enable CORS for local testing
   app.enableCors({
@@ -82,8 +94,9 @@ async function bootstrap() {
   // Start HTTP server FIRST
   await app.listen(port);
   logger.log(`🎬 Realtime Media Backend running on http://localhost:${port}`);
+  logger.log(`📚 API Documentation available at http://localhost:${port}/docs`);
   logger.log(
-    `📚 API Documentation available at http://localhost:${port}/api/docs`,
+    `📚 API Documentation (legacy URL) available at http://localhost:${port}/api/docs`,
   );
 
   // Start Kafka microservice AFTER HTTP server is up.
