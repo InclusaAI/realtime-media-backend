@@ -1,0 +1,82 @@
+services:
+  - type: web
+    name: realtime-media-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/ready
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: LOG_LEVEL
+        value: info
+      - key: JWT_SECRET
+        sync: false
+      - key: LIVEKIT_SERVER_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_SECURITY_PROTOCOL
+        value: SASL_SSL
+      - key: KAFKA_SASL_MECHANISM
+        value: SCRAM-SHA-256
+      - key: KAFKA_USERNAME
+        sync: false
+      - key: KAFKA_PASSWORD
+        sync: false
+      - key: KAFKA_CA_CERT
+        value: |-
+          -----BEGIN CERTIFICATE-----
+          MIIERDCCAqygAwIBAgIUaJ1SMZiHT+gBz8Bo/txpGyhrlfkwDQYJKoZIhvcNAQEM
+          BQAwOjE4MDYGA1UEAwwvYmUwNDFiODMtMTEwYy00MTE4LWFlNmYtNzIzNTNmN2Zi
+          MThiIFByb2plY3QgQ0EwHhcNMjYxMDA5MDcxNDM1WhcNMzYxMDA2MDcxNDM1WjA6
+          MTgwNgYDVQQDDC9iZTA0MWI4My0xMTBjLTQxMTgtYWU2Zi03MjM1M2Y3ZmIxOGIg
+          UHJvamVjdCBDQTCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBALvWyBxf
+          gVXZ7UYkasdmPJcQ3kteTBjCARXNeFgulhg6E7YYE+6rYrM6kDpYV8Fq53z1ToDA
+          uffLUuBCVQj+sYxC27ByZ5wTxVhBV+Ibenzapyf6mCEs/kVXbu3LhDnogDCP6+ub
+          6Whk/EUCqW84N1Ej9vUJl3mr2uCMCGKZCSACC0XD9+CZVFYNAXPZFuPk+dHgU416
+          FGZllgQvCzmUlBLYx/PtdvUP/NVIswNUcVW9M87FcN3SZs4BXkRX0YI4mCAMPFZj
+          NiGDA7yo23VtZ1LupslSBHbJPEchdypo2pga4wFy61KGMqgAtuXo+DHJExmj3lPT
+          9J38sjl5TQ2AurRUFY7kwA3IoCmnrJgPienzx7rNIwP1i/qplpnyP7NJ/5DJRk5s
+          uTJz6jsjqPz1zDu05e8VxN3oYfPaesZKp69ZKl6dNPVPNCgTbbJUzhmR3d4h5dDC
+          EXWeDgDSJLLsbmAgD+FG3bd/QytOYNfM7NX0nWqy46qEzBKnpqjCXCGI3QIDAQAB
+          o0IwQDAdBgNVHQ4EFgQUSBw2N2JTXieEn2PI2HQAJupyKZ8wEgYDVR0TAQH/BAgw
+          BgEB/wIBADALBgNVHQ8EBAMCAQYwDQYJKoZIhvcNAQEMBQADggGBABbZMGs8QbGJ
+          FXr7XfVrbQXfU8EmJ2HLW3nZSjcEWU5Abw5ILYV8Z/iGj9p3PIfxTuaU7orxV0dP
+          qrrsM6mCRQSyiKK7X+QZEZkD3P2stGAKvWqB93XoZWt3wgNHFobmp1VMalsaKH7e
+          BfnlZNWFL4WKyqTtHWJ85EV75kp8AiLk6YeeNXARf+5nvnz8xruq+qi1QQx/EY3T
+          mx8XLGxX2evH6Ym6Ax+QUqqJuREueINnAAXTtc5gXHQI+CXAhvp6abczFLhjRL1/
+          aR1toa5xvCe5TnhgpUIhvThhKMBa4k9XlWfyPmGjNHj8oMfOYEorBVhKvNTbLM+U
+          k1AUe9tqD6fAd6MYrN5VnCacLRrleo5NolgzCEM/PMz3xCyNDDIgIXo7LKUzs5fC
+          T86g2eOYN1H4kXO06DX0o2ZQGk1KfNof9usKXZMeX71d70htIgm0aIaWpTICD374
+          boAbu4qDHdKnfFjEHmLBUYlWaef4esfPOPOk8psUvqYJjDiAecPkxw==
+          -----END CERTIFICATE-----
+      - key: KAFKA_TOPIC_PARTITIONS
+        value: 3
+      - key: KAFKA_TOPIC_REPLICATION_FACTOR
+        value: 3
+      - key: REDIS_URL
+        sync: false
+      - key: SIGN_RECOGNITION_SERVICE_URL
+        sync: false
+      - key: AVATAR_POSE_SERVICE_URL
+        sync: false
+      - key: LIVEKIT_WEBHOOKS_ENABLED
+        value: true
+      - key: RECORDING_ENABLED
+        value: false
+      - key: RECORDING_OUTPUT_PATH
+        value: /tmp/recordings
+      - key: METRICS_ENABLED
+        value: true
+      - key: SERVICE_NAME
+        value: realtime-media-backend
+      - key: SERVICE_VERSION
+        value: 1.0.0
