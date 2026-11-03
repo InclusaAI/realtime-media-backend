@@ -1,30 +1,22 @@
-import { Module } from "@nestjs/common";
-import { AudioTapService } from "./audio-tap.service";
-import { SfuAdapterModule } from "../sfu-adapter/sfu-adapter.module";
-import { EgressModule } from "../egress/egress.module";
-import { ClientsModule, Transport } from "@nestjs/microservices";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { getKafkaClientOptions } from "../config/kafka.config";
+import { Module } from '@nestjs/common';
+import { AudioTapService } from './audio-tap.service';
+import { SfuAdapterModule } from '../sfu-adapter/sfu-adapter.module';
+import { EgressModule } from '../egress/egress.module';
+import { TrackDiscoveryService } from './track-discovery.service';
+import {
+  LiveKitWebhookController,
+  WebhookReceiverFactory,
+} from './livekit-webhook.controller';
+import { KafkaModule } from '../kafka/kafka.module';
 
 @Module({
-  imports: [
-    SfuAdapterModule,
-    EgressModule,
-    ClientsModule.registerAsync([
-      {
-        name: "KAFKA_SERVICE",
-        imports: [ConfigModule],
-        useFactory: (configService: ConfigService) => ({
-          transport: Transport.KAFKA,
-          options: {
-            client: getKafkaClientOptions(configService),
-          },
-        }),
-        inject: [ConfigService],
-      },
-    ]),
+  imports: [SfuAdapterModule, EgressModule, KafkaModule],
+  controllers: [LiveKitWebhookController],
+  providers: [
+    AudioTapService,
+    TrackDiscoveryService,
+    WebhookReceiverFactory,
   ],
-  providers: [AudioTapService],
-  exports: [AudioTapService],
+  exports: [AudioTapService, TrackDiscoveryService],
 })
 export class AudioTapModule {}
