@@ -60,8 +60,20 @@ typings/
 .yarn-integrity
 
 # dotenv environment variables file
+# Profiles like .env.aiven hold real broker credentials — never commit them.
 .env
-.env.test
+.env.*
+!.env.example
+
+# TLS material
+# Aiven/Confluent project CA certs are public but environment-specific; managed
+# brokers reach this service via KAFKA_CA_CERT (a path or an inline PEM body).
+# Blanket-ignore so a *.key/*.p12 can never be committed by accident.
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
 
 # parcel-bundler cache files
 .cache

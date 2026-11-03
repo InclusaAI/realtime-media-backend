@@ -7,6 +7,7 @@ import { VideoFrameHandler } from "./video-frame.handler";
 import { EgressDocsController } from "./egress-docs.controller";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { getKafkaClientOptions } from "../config/kafka.config";
 
 @Module({
   imports: [
@@ -18,11 +19,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
         useFactory: (configService: ConfigService) => ({
           transport: Transport.KAFKA,
           options: {
-            client: {
-              brokers: configService.get<string[]>("kafka.brokers") || [
-                "localhost:9092",
-              ],
-            },
+            client: getKafkaClientOptions(configService),
           },
         }),
         inject: [ConfigService],

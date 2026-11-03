@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Inject } from "@nestjs/common";
 import { ClientKafka } from "@nestjs/microservices";
+import { validateAudioChunk } from "../contracts/kafka-events";
 
 /**
  * Metrics for audio chunk processing.
@@ -99,18 +100,19 @@ export class AudioChunkHandler {
       const speakerId =
         this.trackParticipants.get(trackSid) || "unknown";
 
-      // Build the Kafka message matching the AI services contract
+      // Build the Kafka message matching the inclusaai_contracts AudioChunk schema
       const message = {
-        speakerId,
+        session_id: roomName,
+        speaker_id: speakerId,
         sequence,
-        timestamp: new Date().toISOString(),
-        audioData: payload.toString("base64"),
+        timestamp_ms: Date.now(),
+        sample_rate: 16000,
         encoding: "opus",
-        sampleRate: 48000,
-        channels: 1,
-        trackSid,
-        roomName,
+        payload_b64: payload.toString("base64"),
       };
+
+      // Validate against contract schema before publishing
+      validateAudioChunk(message as Record<string, unknown>);
 
       // Publish to Kafka
       this.kafkaClient.emit(

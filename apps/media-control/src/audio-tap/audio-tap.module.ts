@@ -4,6 +4,7 @@ import { SfuAdapterModule } from "../sfu-adapter/sfu-adapter.module";
 import { EgressModule } from "../egress/egress.module";
 import { ClientsModule, Transport } from "@nestjs/microservices";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { getKafkaClientOptions } from "../config/kafka.config";
 
 @Module({
   imports: [
@@ -16,11 +17,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
         useFactory: (configService: ConfigService) => ({
           transport: Transport.KAFKA,
           options: {
-            client: {
-              brokers: configService.get<string[]>("kafka.brokers") || [
-                "localhost:9092",
-              ],
-            },
+            client: getKafkaClientOptions(configService),
           },
         }),
         inject: [ConfigService],

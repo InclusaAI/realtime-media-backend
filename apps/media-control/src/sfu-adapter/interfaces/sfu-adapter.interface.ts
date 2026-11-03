@@ -13,6 +13,18 @@ export interface TrackInfo {
 }
 
 /**
+ * A track observed in a room, flattened across participants so callers do not
+ * have to walk the participant/track tree themselves.
+ */
+export interface DiscoveredTrack {
+  /** Track SID — the key used by the Egress handlers for correlation. */
+  trackSid: string;
+  /** Identity of the participant publishing the track. */
+  participantIdentity: string;
+  kind: 'audio' | 'video';
+}
+
+/**
  * Abstract interface for SFU (Selective Forwarding Unit) adapters.
  * Implementations include LiveKit, mediasoup, etc.
  */
@@ -42,6 +54,15 @@ export interface SfuAdapter {
 
   /** Get the current state of a room. */
   getRoomState(roomName: string): Promise<unknown>;
+
+  /**
+   * Snapshot every audio/video track currently published in a room.
+   *
+   * Used as the track-discovery fallback when LiveKit webhooks are not
+   * configured — a poll diffed against current state yields the same
+   * publish/unpublish transitions the webhook stream would deliver.
+   */
+  listTracks(roomName: string): Promise<DiscoveredTrack[]>;
 
   /**
    * Start egress (media extraction) for a specific track in a room.

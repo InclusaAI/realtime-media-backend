@@ -24,6 +24,16 @@ export class HealthCheckController {
           kafka: { status: "up" },
           redis: { status: "up" },
           livekit: { status: "up" },
+          aiServices: {
+            signRecognition: {
+              status: "configured",
+              url: "https://sign-recognition-service.onrender.com",
+            },
+            avatarPose: {
+              status: "configured",
+              url: "https://avatar-pose-service.onrender.com",
+            },
+          },
         },
       },
     },

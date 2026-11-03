@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, NotFoundException, BadRequestException } fr
 import { ClientKafka } from '@nestjs/microservices';
 import { CreateSessionDto, SessionMode } from './dto/create-session.dto';
 import { SessionStatusDto } from './dto/session-status.dto';
+import { validateParticipantEvent } from '../contracts/kafka-events';
 
 /**
  * Session states and valid transitions.
@@ -125,14 +126,9 @@ export class SessionsService {
     // Transition to active (no async setup needed)
     this.transitionState(newSession, 'active');
 
-    // Publish session.created event for other services
-    this.kafkaClient.emit('session.created', {
-      sessionId,
-      roomName,
-      initiatorId: createSessionDto.initiatorId,
-      mode: createSessionDto.mode,
-      timestamp: new Date().toISOString(),
-    });
+    // NOTE: We do NOT publish session.created here. The platform-backend's
+    // session-service is the source of truth and publishes that event.
+    // This REST endpoint is for direct media session control only.
 
     return {
       status: 'success',
@@ -166,7 +162,7 @@ export class SessionsService {
     }
 
     if (session.state === 'ended') {
-      throw new BadRequestException(`Session ${sessionId} is already ended.`);
+      throw new NotFoundException(`Session ${sessionId} is already ended.`);
     }
 
     // Transition through ending to ended
@@ -175,13 +171,9 @@ export class SessionsService {
 
     this.logger.log(`Session ended: ${sessionId}`);
 
-    // Publish session.ended event for cleanup in other services
-    this.kafkaClient.emit('session.ended', {
-      sessionId,
-      roomName: session.roomName,
-      timestamp: new Date().toISOString(),
-      durationMs: session.endedAt!.getTime() - session.createdAt.getTime(),
-    });
+    // NOTE: We do NOT publish session.ended here. The platform-backend's
+    // session-service is the source of truth and publishes that event.
+    // This REST endpoint is for direct media session control only.
 
     return {
       status: 'success',
@@ -259,13 +251,15 @@ export class SessionsService {
       this.logger.log(
         `Participant ${participantIdentity} reconnected to session ${sessionId} (within grace period)`,
       );
-      this.kafkaClient.emit(`media.session.${session.roomName}.participant.reconnected`, {
-        participantIdentity,
-        roomName: session.roomName,
-        wasDisconnectedAt: pendingReconnect.disconnectedAt.toISOString(),
-        reconnectedAt: new Date().toISOString(),
-        timestamp: new Date().toISOString(),
-      });
+      // Publish as participant.joined (reconnection) matching inclusaai_contracts ParticipantEvent schema
+      const rejoinEvent = {
+        session_id: session.roomName,
+        participant_id: participantIdentity,
+        event: 'joined' as const,
+        timestamp_ms: Date.now(),
+      };
+      validateParticipantEvent(rejoinEvent as Record<string, unknown>);
+      this.kafkaClient.emit(`media.session.${session.roomName}.participant.joined`, rejoinEvent);
       return { isReconnection: true };
     }
 
@@ -386,12 +380,15 @@ export class SessionsService {
             `Participant ${identity} grace period expired in session ${session.id} — removed`,
           );
 
-          this.kafkaClient.emit(`media.session.${session.roomName}.participant.left`, {
-            participantIdentity: identity,
-            roomName: session.roomName,
-            reason: 'grace_period_expired',
-            timestamp: new Date().toISOString(),
-          });
+          // Publish participant.left matching inclusaai_contracts ParticipantEvent schema
+          const leaveEvent = {
+            session_id: session.roomName,
+            participant_id: identity,
+            event: 'left' as const,
+            timestamp_ms: Date.now(),
+          };
+          validateParticipantEvent(leaveEvent as Record<string, unknown>);
+          this.kafkaClient.emit(`media.session.${session.roomName}.participant.left`, leaveEvent);
         }
       }
     }

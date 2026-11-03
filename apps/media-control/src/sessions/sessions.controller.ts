@@ -61,6 +61,31 @@ export class SessionsController {
     return this.sessionsService.createSession(createSessionDto);
   }
 
+  @Get()
+  @ApiOperation({
+    summary: "List all active sessions",
+    description:
+      "Returns all sessions that are not in the 'ended' state. " +
+      "Includes session ID, state, mode, participants, and timestamps.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "List of active sessions.",
+  })
+  listSessions() {
+    const sessions = this.sessionsService.getActiveSessions();
+    return {
+      status: 'success',
+      data: sessions.map(s => ({
+        id: s.id,
+        state: s.state,
+        mode: s.mode,
+        participants: s.participants.length,
+        createdAt: s.createdAt,
+      })),
+    };
+  }
+
   @Get(":sessionId")
   @ApiOperation({
     summary: "Get session details by ID",

@@ -1,5 +1,19 @@
-version: "3.8"
+# Local development dependencies for realtime-media-backend.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# IMPORTANT: Run the shared infrastructure FIRST:
+#   cd ../backend && docker compose -f docker-compose.dev.yml up -d
+#
+# This compose file only runs LiveKit (media-specific). Redis, Postgres,
+# and Redpanda (Kafka) come from the canonical stack in the backend repo.
+#
+# Ports:
+#   LiveKit:  7880 (WebSocket/HTTP), 7881 (RTC/UDP)
+name: inclusaai-media-dev
+
 services:
+  # ---- LiveKit SFU (media-specific) ----
   livekit:
     image: livekit/livekit-server:latest
     ports:
@@ -8,24 +22,6 @@ services:
     environment:
       - LIVEKIT_API_KEY=devkey
       - LIVEKIT_API_SECRET=secret
-      - LIVEKIT_REDIS_URL=redis://redis:6379
-  redis:
-    image: redis:6.2-alpine
-    ports:
-      - "6379:6379"
-  kafka:
-    image: "bitnami/kafka:latest"
-    ports:
-      - "9092:9092"
-    environment:
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - ALLOW_PLAINTEXT_LISTENER=yes
-    depends_on:
-      - zookeeper
-  zookeeper:
-    image: "bitnami/zookeeper:latest"
-    ports:
-      - "2181:2181"
-    environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
+      - LIVEKIT_REDIS_URL=redis://host.docker.internal:6379
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

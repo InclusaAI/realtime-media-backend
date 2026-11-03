@@ -63,7 +63,16 @@ The service will start on `http://localhost:3001`
 | `LIVEKIT_SERVER_URL`                | http://localhost:7880  | LiveKit server URL                       |
 | `LIVEKIT_API_KEY`                   | devkey                 | LiveKit API key                          |
 | `LIVEKIT_API_SECRET`                | secret                 | LiveKit API secret                       |
-| `KAFKA_BROKERS`                     | localhost:9092         | Kafka broker addresses                   |
+| `KAFKA_BOOTSTRAP_SERVERS`            | localhost:9092         | Kafka broker addresses (comma-separated)  |
+| `KAFKA_BROKERS`                      | (fallback)             | Legacy alias for the above                |
+| `KAFKA_SECURITY_PROTOCOL`            | (unset = PLAINTEXT)   | PLAINTEXT / SASL_PLAINTEXT / SSL / SASL_SSL |
+| `KAFKA_SASL_MECHANISM`               | scram-sha-256          | SASL mechanism                            |
+| `KAFKA_USERNAME` / `KAFKA_PASSWORD`  | (unset)                | SASL credentials (both or neither)        |
+| `KAFKA_CA_CERT`                      | (unset)                | PEM CA file path, or the inline PEM body  |
+| `KAFKA_TOPIC_PARTITIONS`             | 3                      | Partitions for provisioned topics         |
+| `KAFKA_TOPIC_REPLICATION_FACTOR`     | 3                      | Replicas for provisioned topics           |
+| `SIGN_RECOGNITION_SERVICE_URL`       | (unset)                | ai-services sign recognition endpoint     |
+| `AVATAR_POSE_SERVICE_URL`            | (unset)                | ai-services avatar pose endpoint          |
 | `REDIS_URL`                         | redis://localhost:6379 | Redis connection URL                     |
 | `VIDEO_SAMPLE_RATE_FPS`             | 15                     | Video sampling rate for sign recognition |
 | `SESSION_RECONNECT_GRACE_PERIOD_MS` | 30000                  | Grace period for reconnections (30s)     |

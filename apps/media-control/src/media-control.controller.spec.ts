@@ -3,20 +3,29 @@ import { MediaControlController } from './media-control.controller';
 import { MediaControlService } from './media-control.service';
 
 describe('MediaControlController', () => {
-  let mediaControlController: MediaControlController;
+  let controller: MediaControlController;
 
   beforeEach(async () => {
-    const app: TestingModule = await Test.createTestingModule({
+    const module: TestingModule = await Test.createTestingModule({
       controllers: [MediaControlController],
-      providers: [MediaControlService],
+      providers: [
+        {
+          provide: MediaControlService,
+          useValue: {
+            getHello: jest.fn().mockReturnValue('Hello World!'),
+          },
+        },
+      ],
     }).compile();
 
-    mediaControlController = app.get<MediaControlController>(MediaControlController);
+    controller = module.get<MediaControlController>(MediaControlController);
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(mediaControlController.getHello()).toBe('Hello World!');
-    });
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  it('should return Hello World', () => {
+    expect(controller.getHello()).toBe('Hello World!');
   });
 });

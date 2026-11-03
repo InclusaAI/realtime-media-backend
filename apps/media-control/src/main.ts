@@ -1,28 +1,42 @@
 import 'reflect-metadata';
 import { NestFactory } from "@nestjs/core";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
-import { Logger } from "@nestjs/common";
+import { Logger, ValidationPipe } from "@nestjs/common";
 import { MicroserviceOptions, Transport } from "@nestjs/microservices";
 import { ConfigService } from "@nestjs/config";
 import { MediaControlModule } from "./media-control.module";
+import {
+  getKafkaClientOptions,
+} from "./config/kafka.config";
+import { summarizeKafkaClientOptions } from "./config/kafka-client-options";
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
 
-  const app = await NestFactory.create(MediaControlModule);
+  // rawBody is required by the LiveKit webhook endpoint: the request signature
+  // is computed over the exact bytes sent, so a re-serialised JSON body would
+  // not verify. Opt-in, so it costs a Buffer copy on JSON routes only.
+  const app = await NestFactory.create(MediaControlModule, {
+    rawBody: true,
+  });
+
+  // Enable global DTO validation (class-validator decorators)
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   // Connect microservice transport for Kafka consumers
   const configService = app.get(ConfigService);
-  const brokers = configService.get<string[]>("kafka.brokers") || [
-    "localhost:9092",
-  ];
+  const kafkaClientOptions = getKafkaClientOptions(configService);
 
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.KAFKA,
     options: {
-      client: {
-        brokers,
-      },
+      client: kafkaClientOptions,
       consumer: {
         groupId: "realtime-media-backend",
       },
@@ -75,6 +89,10 @@ async function bootstrap() {
   // Start Kafka microservice AFTER HTTP server is up.
   // Use startAllMicroservices() without blocking — it will retry
   // Kafka connections in the background indefinitely.
+  logger.log(
+    `🔌 Kafka client configured: ${summarizeKafkaClientOptions(kafkaClientOptions)}`,
+  );
+
   try {
     await app.startAllMicroservices();
     logger.log(`🔌 Kafka microservice connected and consuming events`);
