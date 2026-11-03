@@ -15,23 +15,22 @@ import { getKafkaClientOptions } from '../config/kafka.config';
  * Registering here once and exporting the token means every consumer shares one
  * producer. Consumers must import this module rather than re-registering.
  */
-@Module({
-  imports: [
-    ConfigModule,
-    ClientsModule.registerAsync([
-      {
-        name: 'KAFKA_SERVICE',
-        imports: [ConfigModule],
-        useFactory: (configService: ConfigService) => ({
-          transport: Transport.KAFKA,
-          options: {
-            client: getKafkaClientOptions(configService),
-          },
-        }),
-        inject: [ConfigService],
+const KafkaClientModule = ClientsModule.registerAsync([
+  {
+    name: 'KAFKA_SERVICE',
+    imports: [ConfigModule],
+    useFactory: (configService: ConfigService) => ({
+      transport: Transport.KAFKA,
+      options: {
+        client: getKafkaClientOptions(configService),
       },
-    ]),
-  ],
-  exports: ['KAFKA_SERVICE'],
+    }),
+    inject: [ConfigService],
+  },
+]);
+
+@Module({
+  imports: [ConfigModule, KafkaClientModule],
+  exports: [KafkaClientModule],
 })
 export class KafkaModule {}
