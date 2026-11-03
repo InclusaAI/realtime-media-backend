@@ -130,8 +130,9 @@ export class HealthCheckService {
     try {
       const liveKitUrl = this.configService.get<string>("LIVEKIT_SERVER_URL");
       const apiKey = this.configService.get<string>("LIVEKIT_API_KEY");
+      const apiSecret = this.configService.get<string>("LIVEKIT_API_SECRET");
 
-      if (!liveKitUrl || !apiKey) {
+      if (!liveKitUrl || !apiKey || !apiSecret) {
         return {
           status: "down",
           details: "LiveKit credentials not configured",
@@ -142,11 +143,8 @@ export class HealthCheckService {
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
       try {
-        const response = await fetch(`${liveKitUrl}/api/status`, {
+        const response = await fetch(`${liveKitUrl.replace(/\/$/, '')}/`, {
           method: "GET",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-          },
           signal: controller.signal,
         });
 

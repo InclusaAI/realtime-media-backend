@@ -7,6 +7,15 @@ import { HealthCheckService } from "./health-check.service";
 export class HealthCheckController {
   constructor(private readonly healthCheckService: HealthCheckService) {}
 
+  @Get("live")
+  @ApiOperation({
+    summary: "Liveness check endpoint",
+    description: "Returns 200 while this HTTP process is running",
+  })
+  async getLiveness() {
+    return { status: "alive", timestamp: new Date().toISOString() };
+  }
+
   @Get()
   @ApiOperation({
     summary: "Health check endpoint",
@@ -54,7 +63,7 @@ export class HealthCheckController {
   @ApiOperation({
     summary: "Readiness check endpoint",
     description:
-      "Returns 200 only if all critical services are ready (Kafka, Redis, LiveKit)",
+      "Returns 200 while the HTTP service is ready to accept requests",
   })
   @ApiResponse({
     status: 200,
@@ -65,14 +74,10 @@ export class HealthCheckController {
     description: "Service is not ready",
   })
   async getReadiness() {
-    const health = await this.healthCheckService.checkHealth();
-    if (health.status === "healthy") {
-      return { ready: true, message: "All systems operational" };
-    }
-    throw new ServiceUnavailableException({
-      ready: false,
-      message: "Some systems are unavailable",
-      services: health.services,
-    });
+    return {
+      ready: true,
+      message: "HTTP service is ready to accept requests",
+      timestamp: new Date().toISOString(),
+    };
   }
 }
